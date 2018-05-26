@@ -1,16 +1,17 @@
 # 📹 foggycam
 
-![Foggycam logo](foggycam-logo.png)
 
-(_Icon derivative from the [work of Steven Kuiper](https://www.iconfinder.com/icons/408402/camera_icon#size=256)_)
+![Foggycam logo](images/logo.jpg)
 
-📹  A tool to capture Nest video streams locally, without having to pay for Nest Aware. The current release is tested on macOS. Windows and Linux adaptations coming soon (minor tweaks required).
+**Current Release:** 2.0 (Analog Artifact - _Preview_)
 
->**NOTE:** Worth noting that we don't yet support audio recording, due to the fact that only the visual stream is captured.
+A tool to capture Nest video streams locally or to the Azure cloud, even for users without a Nest subscription. The current release is tested on macOS. Windows and Linux adaptations coming soon (minor tweaks required).
+
+>**NOTE:** Audio recording is currently not supported.
 
 ## How To Configure
 
-Make sure you rename `_config.json` to `config.json` and specify the following parameters:
+Rename `_config.json` to `config.json` and specify the following parameters:
 
 |Parameter|Description|
 |-----|-----|
@@ -26,15 +27,16 @@ Make sure you rename `_config.json` to `config.json` and specify the following p
 |`az_account_name`|Name of the Azure Storage account.|
 |`az_sas_token`|SAS token for the Azure Storage account. Should have `write`, `list` and `read` permissions.|
 
-**If you want to capture video**, you will need to [download `ffmpeg`](https://www.ffmpeg.org/download.html) and place it in the `tools` folder, in the script root directory.
 
-Alternatively, if you are on Linux, install `ffmpeg`:
+**If you want to generate video**, you will need to [download `ffmpeg`](https://www.ffmpeg.org/download.html) and place it in the `tools` folder, in the script root directory.
+
+Alternatively, if you are on Linux, you can install `ffmpeg` with the help of the following command:
 
 ```
 sudo apt-get install ffmpeg
 ```
 
-On a Mac, run:
+On macOS, you can install `ffmpeg` through [Homebrew](https://brew.sh):
 
 ```
 brew install ffmpeg
@@ -52,6 +54,6 @@ Run `python start.py` after you configured the settings above. Exit by pressing 
 
 ## Disclaimer
 
-I do not make any claims regarding the stability of the application, or its applicability for your own purposes. Use at your own risk. Code is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+No claims are made in regards to the stability of the application, or its applicability for your purposes. Use at your own risk. Code is licensed under the [MIT License](https://opensource.org/licenses/MIT). Code can change at any time with no prior notice.
 
 **DO NOT USE** in critical security/surveillance scenarios.
