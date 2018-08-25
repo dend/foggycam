@@ -27,11 +27,9 @@ CONFIG_PATH = args.config
 
 CONFIG = json.load(open(CONFIG_PATH))
 
-print(CONFIG)
 for att in dir(args):
     if att[0] == "_":
         continue
-    print("LO",att, getattr(args,att))
     key = att
     if key == "cloud_user":
         key = "az_account_name"
@@ -42,7 +40,6 @@ for att in dir(args):
     if getattr(args,att) is not None and key in CONFIG:
         CONFIG[key] = getattr(args,att)
 
-print(CONFIG.keys(), CONFIG.values())
 CONFIG = namedtuple("X",CONFIG.keys())(*CONFIG.values())
 CAM = FoggyCam(username=CONFIG.username, password=CONFIG.password)
 CAM.capture_images(CONFIG)
