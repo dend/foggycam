@@ -28,7 +28,30 @@ Rename `_config.json` to `config.json` and specify the following parameters:
 |`az_sas_token`|SAS token for the Azure Storage account. Should have `write`, `list` and `read` permissions.|
 
 
-**If you want to generate video**, you will need to [download `ffmpeg`](https://www.ffmpeg.org/download.html) and place it in the `tools` folder, in the script root directory.
+```
+
+## How To Start
+
+### Using CONDA
+
+#### Install Conda
+
+Get [conda](https://repo.continuum.io/miniconda/)
+
+#### Create environement
+
+```
+conda create -n foggycam python=3.6 ffmpeg
+source activate foggycam
+```
+
+### System Tools and PIP
+Make sure you install the requirements for the project, by `cd`-ing in the folder with the project, and running:
+
+
+**If you want to generate video**, you will need to ffmpeg 
+
+[download `ffmpeg`](https://www.ffmpeg.org/download.html) and place it in the `tools` folder, in the script root directory.
 
 Alternatively, if you are on Linux, you can install `ffmpeg` with the help of the following command:
 
@@ -40,17 +63,13 @@ On macOS, you can install `ffmpeg` through [Homebrew](https://brew.sh):
 
 ```
 brew install ffmpeg
-```
+Run `python start.py` after you configured the settings above. Exit by pressing <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
-## How To Start
-
-Make sure you install the requirements for the project, by `cd`-ing in the folder with the project, and running:
+### Azure Cloud
 
 ```
 pip install -r requirements.txt
 ```
-
-Run `python start.py` after you configured the settings above. Exit by pressing <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
 ## Disclaimer
 
