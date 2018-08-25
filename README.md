@@ -32,6 +32,18 @@ Rename `_config.json` to `config.json` and specify the following parameters:
 
 ## How To Start
 
+### Using the script
+
+Go to any directory. Installation will be done in the directory you're running the script from.
+
+#### Regular install
+
+bash ./install.bash
+
+#### Azure
+
+bash ./install.bash azure
+
 ### Using CONDA
 
 #### Install Conda
