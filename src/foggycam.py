@@ -14,7 +14,11 @@ import threading
 import time
 from datetime import datetime
 import subprocess
-from azurestorageprovider import AzureStorageProvider
+try:
+    from azurestorageprovider import AzureStorageProvider
+    has_azure = True
+except:
+    has_azure = False
 import shutil
 
 class FoggyCam(object):
