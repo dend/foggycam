@@ -1,6 +1,5 @@
 """FoggyCam captures Nest camera images and generates a video."""
 
-from urllib.request import urlopen
 import pickle
 import urllib
 import json
@@ -12,14 +11,15 @@ from subprocess import Popen, PIPE
 import uuid
 import threading
 import time
+import shlex
 from datetime import datetime
-import subprocess
 try:
     from azurestorageprovider import AzureStorageProvider
     has_azure = True
-except:
+except Exception:
     has_azure = False
 import shutil
+
 
 class FoggyCam(object):
     """FoggyCam client class that performs capture operations."""
@@ -33,14 +33,16 @@ class FoggyCam(object):
     nest_current_user = None
 
     nest_session_url = 'https://home.nest.com/session'
-    nest_user_url = 'https://home.nest.com/api/0.1/user/#USERID#/app_launch'
-    nest_api_login_url = 'https://webapi.camera.home.nest.com/api/v1/login.login_nest'
-    nest_image_url = 'https://nexusapi-us1.camera.home.nest.com/get_image?uuid=#CAMERAID#&width=#WIDTH#&cachebuster=#CBUSTER#'
+    nest_user_url = 'https://home.nest.com/api/0.1/user/{USERID}/app_launch'
+    nest_api_login_url = 'https://webapi.camera.home.nest.com/api/v1/' +\
+        'login.login_nest'
+    nest_image_url = 'https://nexusapi-us1.camera.home.nest.com/' +\
+        'get_image?uuid={CAMERAID}&width={WIDTH}&cachebuster={CBUSTER}'
     nest_verify_pin_url = 'https://home.nest.com/api/0.1/2fa/verify_pin'
 
     nest_user_request_payload = {
-        "known_bucket_types":["quartz"],
-        "known_bucket_versions":[]
+        "known_bucket_types": ["quartz"],
+        "known_bucket_versions": []
     }
 
     nest_camera_array = []
@@ -56,7 +58,8 @@ class FoggyCam(object):
         self.nest_password = password
         self.nest_username = username
         self.cookie_jar = CookieJar()
-        self.merlin = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie_jar))
+        self.merlin = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.cookie_jar))
 
         if not os.path.exists('_temp'):
             os.makedirs('_temp')
@@ -68,48 +71,51 @@ class FoggyCam(object):
         # if we can avoid logging in.
         try:
             self.unpickle_cookies()
-            
+
             utc_date = datetime.utcnow()
             utc_millis_str = str(int(utc_date.timestamp())*1000)
             self.initialize_twof_session(utc_millis_str)
-        except:
-            print ("Failed to re-use the cookies. Re-initializing session...")
+        except Exception:
+            print("Failed to re-use the cookies. Re-initializing session...")
             self.initialize_session()
-        
+
         self.login()
         self.initialize_user()
-    
+
     def unpickle_cookies(self):
         """Get local cookies and load them into the cookie jar."""
 
-        print ("Unpickling cookies...")
+        print("Unpickling cookies...")
         with open("cookies.bin", 'rb') as f:
             pickled_cookies = pickle.load(f)
 
             for pickled_cookie in pickled_cookies:
                 self.cookie_jar.set_cookie(pickled_cookie)
 
-            cookie_data = dict((cookie.name, cookie.value) for cookie in self.cookie_jar)
+            cookie_data = dict((cookie.name, cookie.value)
+                               for cookie in self.cookie_jar)
 
             self.nest_access_token = cookie_data["cztoken"]
 
     def pickle_cookies(self):
         """Store the cookies locally to reduce auth calls."""
 
-        print ("Pickling cookies...")
+        print("Pickling cookies...")
         pickle.dump([c for c in self.cookie_jar], open("cookies.bin", "wb"))
 
     def initialize_twof_session(self, time_token):
-        """Creates the first session to get the access token and cookie, with 2FA enabled."""
+        """Creates the first session to get the access token and cookie,
+           with 2FA enabled."""
 
-        print ("Intializing 2FA session...")
+        print("Intializing 2FA session...")
 
         target_url = self.nest_session_url + "?=_" + time_token
-        print (target_url)
+        print(target_url)
 
         try:
             request = urllib.request.Request(target_url)
-            request.add_header('Authorization', 'Basic %s' % self.nest_access_token)
+            request.add_header('Authorization', 'Basic %s' %
+                               self.nest_access_token)
 
             response = self.merlin.open(request)
             session_data = response.read()
@@ -122,15 +128,14 @@ class FoggyCam(object):
 
             self.pickle_cookies()
         except urllib.request.HTTPError as err:
-            print (err)
-
+            print(err)
 
     def initialize_session(self):
         """Creates the first session to get the access token and cookie."""
 
-        print ('INFO: Initializing session...')
+        print('INFO: Initializing session...')
 
-        payload = {'email':self.nest_username, 'password':self.nest_password}
+        payload = {'email': self.nest_username, 'password': self.nest_password}
         binary_data = json.dumps(payload).encode('utf-8')
 
         request = urllib.request.Request(self.nest_session_url, binary_data)
@@ -145,36 +150,39 @@ class FoggyCam(object):
             self.nest_access_token_expiration = session_json['expires_in']
             self.nest_user_id = session_json['userid']
 
-            print ('INFO: [PARSED] Captured authentication token:')
-            print (self.nest_access_token)
+            print('INFO: [PARSED] Captured authentication token:')
+            print(self.nest_access_token)
 
-            print ('INFO: [PARSED] Captured expiration date for token:')
-            print (self.nest_access_token_expiration)
+            print('INFO: [PARSED] Captured expiration date for token:')
+            print(self.nest_access_token_expiration)
 
-            cookie_data = dict((cookie.name, cookie.value) for cookie in self.cookie_jar)
+            cookie_data = dict((cookie.name, cookie.value)
+                               for cookie in self.cookie_jar)
             for cookie in cookie_data:
-                print (cookie)
+                print(cookie)
 
-            print ('INFO: [COOKIE] Captured authentication token:')
-            print (cookie_data["cztoken"])
+            print('INFO: [COOKIE] Captured authentication token:')
+            print(cookie_data["cztoken"])
         except urllib.request.HTTPError as err:
             if err.code == 401:
                 error_message = err.read()
                 unauth_content = json.loads(error_message)
 
                 if unauth_content["status"].lower() == "verification_pending":
-                    print ("Pending 2FA verification!")
+                    print("Pending 2FA verification!")
 
                     two_factor_token = unauth_content["2fa_token"]
                     phone_truncated = unauth_content["truncated_phone_number"]
 
-                    print ("Enter PIN you just received on number ending with", phone_truncated)
+                    print("Enter PIN you just received on number ending with",
+                          phone_truncated)
                     pin = input()
 
-                    payload = {"pin":pin ,"2fa_token":two_factor_token}
+                    payload = {"pin": pin, "2fa_token": two_factor_token}
                     binary_data = json.dumps(payload).encode('utf-8')
 
-                    request = urllib.request.Request(self.nest_verify_pin_url, binary_data)
+                    request = urllib.request.Request(
+                        self.nest_verify_pin_url, binary_data)
                     request.add_header('Content-Type', 'application/json')
 
                     try:
@@ -182,92 +190,102 @@ class FoggyCam(object):
                         pin_attempt = response.read()
 
                         parsed_pin_attempt = json.loads(pin_attempt)
-                        if parsed_pin_attempt["status"].lower() == "id_match_positive":
-                            print ("2FA verification successful.")
+                        if parsed_pin_attempt["status"].lower() == \
+                                "id_match_positive":
+                            print("2FA verification successful.")
 
                             utc_date = datetime.utcnow()
-                            utc_millis_str = str(int(utc_date.timestamp())*1000)
-                            
-                            print ("Targetting new session with timestamp: ", utc_millis_str)
-                            
-                            cookie_data = dict((cookie.name, cookie.value) for cookie in self.cookie_jar)
+                            utc_millis_str = str(
+                                int(utc_date.timestamp())*1000)
 
-                            print ('INFO: [COOKIE] Captured authentication token:')
-                            print (cookie_data["cztoken"])
+                            print("Targetting new session with timestamp: ",
+                                  utc_millis_str)
 
-                            self.nest_access_token = parsed_pin_attempt['access_token']
+                            cookie_data = dict((cookie.name, cookie.value)
+                                               for cookie in self.cookie_jar)
+
+                            print(
+                                'INFO: [COOKIE] Captured authentication token:'
+                                )
+                            print(cookie_data["cztoken"])
+
+                            self.nest_access_token = \
+                                parsed_pin_attempt['access_token']
 
                             self.initialize_twof_session(utc_millis_str)
                         else:
-                            print ("Could not verify. Exiting...")
+                            print("Could not verify. Exiting...")
                             exit()
-                    
-                    except:
+
+                    except Exception:
                         traceback.print_exc()
 
-                        print ("Failed 2FA checks. Exiting...")
+                        print("Failed 2FA checks. Exiting...")
                         exit()
 
-        print ('INFO: Session initialization complete!')
+        print('INFO: Session initialization complete!')
 
     def login(self):
         """Performs user login to get the website_2 cookie."""
 
-        print ('INFO: Performing user login...')
+        print('INFO: Performing user login...')
 
-        post_data = {'access_token':self.nest_access_token}
+        post_data = {'access_token': self.nest_access_token}
         post_data = urllib.parse.urlencode(post_data)
         binary_data = post_data.encode('utf-8')
 
-        print ("INFO: Auth post data")
-        print (post_data)
+        print("INFO: Auth post data")
+        print(post_data)
 
-        request = urllib.request.Request(self.nest_api_login_url, data=binary_data)
+        request = urllib.request.Request(
+            self.nest_api_login_url, data=binary_data)
         request.add_header('Content-Type', 'application/x-www-form-urlencoded')
 
         response = self.merlin.open(request)
         session_data = response.read()
 
-        print (session_data)
+        print(session_data)
 
     def initialize_user(self):
         """Gets the assets belonging to Nest user."""
 
-        print ('INFO: Initializing current user...')
+        print('INFO: Initializing current user...')
 
-        user_url = self.nest_user_url.replace('#USERID#', self.nest_user_id)
+        user_url = self.nest_user_url.format(USERID=self.nest_user_id)
 
-        print ('INFO: Requesting user data from:')
-        print (user_url)
+        print('INFO: Requesting user data from:')
+        print(user_url)
 
-        binary_data = json.dumps(self.nest_user_request_payload).encode('utf-8')
+        binary_data = json.dumps(
+            self.nest_user_request_payload).encode('utf-8')
 
         request = urllib.request.Request(user_url, binary_data)
 
         request.add_header('Content-Type', 'application/json')
-        request.add_header('Authorization', 'Basic %s' % self.nest_access_token)
+        request.add_header('Authorization', 'Basic %s' %
+                           self.nest_access_token)
 
         response = self.merlin.open(request)
 
         response_data = response.read()
 
-        print (response_data)
+        print(response_data)
 
         user_object = json.loads(response_data)
         for bucket in user_object['updated_buckets']:
             bucket_id = bucket['object_key']
             if bucket_id.startswith('quartz.'):
                 camera_id = bucket_id.replace('quartz.', '')
-                print ('INFO: Detected camera configuration.')
-                print (bucket)
-                print ('INFO: Camera UUID:')
-                print (camera_id)
+                print('INFO: Detected camera configuration.')
+                print(bucket)
+                print('INFO: Camera UUID:')
+                print(camera_id)
                 self.nest_camera_array.append(camera_id)
 
     def capture_images(self, config=None):
         """Starts the multi-threaded image capture process."""
 
-        print ('INFO: Capturing images...')
+        print('INFO: Capturing images...')
 
         self.is_capturing = True
 
@@ -283,11 +301,15 @@ class FoggyCam(object):
             # Determine whether the entries should be copied to a custom path
             # or not.
             if not config.path:
-                camera_path = os.path.join(self.local_path, 'capture', camera, 'images')
-                video_path = os.path.join(self.local_path, 'capture', camera, 'video')
+                camera_path = os.path.join(
+                    self.local_path, 'capture', camera, 'images')
+                video_path = os.path.join(
+                    self.local_path, 'capture', camera, 'video')
             else:
-                camera_path = os.path.join(config.path, 'capture', camera, 'images')
-                video_path = os.path.join(config.path, 'capture', camera, 'video')
+                camera_path = os.path.join(
+                    config.path, 'capture', camera, 'images')
+                video_path = os.path.join(
+                    config.path, 'capture', camera, 'video')
 
             # Provision the necessary folders for images and videos.
             if not os.path.exists(camera_path):
@@ -296,14 +318,16 @@ class FoggyCam(object):
             if not os.path.exists(video_path):
                 os.makedirs(video_path)
 
-            image_thread = threading.Thread(target=self.perform_capture, args=(config, camera, camera_path, video_path))
+            image_thread = threading.Thread(target=self.perform_capture, args=(
+                config, camera, camera_path, video_path))
             image_thread.daemon = True
             image_thread.start()
 
         while True:
             time.sleep(1)
 
-    def perform_capture(self, config=None, camera=None, camera_path='', video_path=''):
+    def perform_capture(self, config=None, camera=None, camera_path='',
+                        video_path=''):
         """Captures images and generates the video from them."""
 
         camera_buffer = defaultdict(list)
@@ -314,40 +338,58 @@ class FoggyCam(object):
             utc_date = datetime.utcnow()
             utc_millis_str = str(int(utc_date.timestamp())*1000)
 
-            print ('Applied cache buster: ', utc_millis_str)
+            print('Applied cache buster: ', utc_millis_str)
 
-            image_url = self.nest_image_url.replace('#CAMERAID#', camera).replace('#CBUSTER#', utc_millis_str).replace('#WIDTH#', str(config.width))
+            image_url = self.nest_image_url.format(CAMERAID=camera,
+                                                   CBUSTER=utc_millis_str,
+                                                   WIDTH=config.width)
 
             request = urllib.request.Request(image_url)
-            request.add_header('accept', 'image/webp,image/apng,image/*,*/*;q=0.9')
+            request.add_header(
+                'accept', 'image/webp,image/apng,image/*,*/*;q=0.9')
             request.add_header('accept-encoding', 'gzip, deflate, br')
-            request.add_header('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36')
-            request.add_header('referer','https://home.nest.com/')
-            request.add_header('authority','nexusapi-us1.camera.home.nest.com')
+            request.add_header(
+                'user-agent',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) ' +
+                'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+                'Chrome/66.0.3359.181 Safari/537.36')
+            request.add_header('referer', 'https://home.nest.com/')
+            request.add_header(
+                'authority', 'nexusapi-us1.camera.home.nest.com')
 
             try:
                 response = self.merlin.open(request)
                 time.sleep(5)
 
-                with open(camera_path + '/' + file_id + '.jpg', 'wb') as image_file:
+                with open(os.path.join(camera_path, file_id + '.jpg'), 'wb')\
+                        as image_file:
                     for chunk in response:
                         image_file.write(chunk)
 
                 # Check if we need to compile a video
                 if config.produce_video:
                     camera_buffer_size = len(camera_buffer[camera])
-                    print ('[', threading.current_thread().name, '] INFO: Camera buffer size for ', camera, ': ', camera_buffer_size)
+                    print('[ {} ] INFO: Camera buffer size for {} :'.format(
+                          threading.current_thread().name,
+                          camera,
+                          camera_buffer_size))
 
                     if camera_buffer_size < self.nest_camera_buffer_threshold:
                         camera_buffer[camera].append(file_id)
                     else:
-                        camera_image_folder = os.path.join(self.local_path, camera_path)
+                        camera_image_folder = os.path.join(
+                            self.local_path, camera_path)
 
-                        # Build the batch of files that need to be made into a video.
+                        # Build the batch of files that need
+                        # to be made into a video.
                         file_declaration = ''
                         for buffer_entry in camera_buffer[camera]:
-                            file_declaration = file_declaration + 'file \'' + camera_image_folder + '/' + buffer_entry + '.jpg\'\n'
-                        concat_file_name = os.path.join(self.temp_dir_path, camera + '.txt')
+                            file_declaration = "{} file '{}.jpg'\n".format(
+                                file_declaration,
+                                os.path.join(camera_image_folder, buffer_entry)
+                            )
+                        concat_file_name = os.path.join(
+                            self.temp_dir_path, camera + '.txt')
 
                         # Make sure that the content is decoded
 
@@ -362,37 +404,57 @@ class FoggyCam(object):
                             ffmpeg_path = 'ffmpeg'
                             use_terminal = True
                         else:
-                            ffmpeg_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'tools', 'ffmpeg'))
-                        
-                        if use_terminal or (os.path.isfile(ffmpeg_path) and use_terminal is False):
-                            print ('INFO: Found ffmpeg. Processing video!')
-                            target_video_path = os.path.join(video_path, file_id + '.mp4')
-                            process = Popen([ffmpeg_path, '-r', str(config.frame_rate), '-f', 'concat', '-safe', '0', '-i', concat_file_name, '-vcodec', 'libx264', '-crf', '25', '-pix_fmt', 'yuv420p', target_video_path], stdout=PIPE, stderr=PIPE)
+                            ffmpeg_path = os.path.abspath(os.path.join(
+                                os.path.dirname(__file__), '..', 'tools',
+                                'ffmpeg'))
+
+                        if use_terminal or (os.path.isfile(ffmpeg_path)
+                                            and
+                                            use_terminal is False):
+                            print('INFO: Found ffmpeg. Processing video!')
+                            target_video_path = os.path.join(
+                                video_path, file_id + '.mp4')
+                            cmd = "{} -r {} -f concat -safe 0 -i {} " +\
+                                "-vcodec libx264 -crf 25 -pix_fmt yuv420p {}"
+                            cmd.format(ffmpeg_path, config.frame_rate,
+                                       concat_file_name, target_video_path)
+                            process = Popen(shlex.split(
+                                cmd), stdout=PIPE, stderr=PIPE)
                             process.communicate()
                             os.remove(concat_file_name)
-                            print ('INFO: Video processing is complete!')
+                            print('INFO: Video processing is complete!')
 
                             # Upload the video
                             storage_provider = AzureStorageProvider()
 
                             if bool(config.upload_to_azure):
-                                print ('INFO: Uploading to Azure Storage...')
-                                target_blob = 'foggycam/' + camera + '/' + file_id + '.mp4'
-                                storage_provider.upload_video(account_name=config.az_account_name, sas_token=config.az_sas_token, container='foggycam', blob=target_blob, path=target_video_path)
-                                print ('INFO: Upload complete.')
+                                print('INFO: Uploading to Azure Storage...')
+                                target_blob = os.path.join("foggycam", camera,
+                                                           file_id + '.mp4')
+                                storage_provider.upload_video(
+                                    account_name=config.az_account_name,
+                                    sas_token=config.az_sas_token,
+                                    container='foggycam',
+                                    blob=target_blob,
+                                    path=target_video_path)
+                                print('INFO: Upload complete.')
 
-                            # If the user specified the need to remove images post-processing
-                            # then clear the image folder from images in the buffer.
+                            # If the user specified the need to remove images
+                            #  post-processing then clear the image folder
+                            #  from images in the buffer.
                             if config.clear_images:
                                 for buffer_entry in camera_buffer[camera]:
-                                    deletion_target = os.path.join(camera_path, buffer_entry + '.jpg')
-                                    print ('INFO: Deleting ' + deletion_target)
+                                    deletion_target = os.path.join(
+                                        camera_path, buffer_entry + '.jpg')
+                                    print('INFO: Deleting ' + deletion_target)
                                     os.remove(deletion_target)
                         else:
-                            print ('WARNING: No ffmpeg detected. Make sure the binary is in /tools.')
-
-                        # Empty buffer, since we no longer need the file records that we're planning
-                        # to compile in a video.
+                            print(
+                                'WARNING: No ffmpeg detected.' +
+                                ' Make sure the binary is in /tools.')
+                        # Empty buffer,
+                        # since we no longer need the file records
+                        # that we're planning to compile in a video.
                         camera_buffer[camera] = []
             except urllib.request.HTTPError as err:
                 if err.code == 403:
@@ -400,7 +462,7 @@ class FoggyCam(object):
                     self.login()
                     self.initialize_user()
             except Exception:
-                print ('ERROR: Could not download image from URL:')
-                print (image_url)
+                print('ERROR: Could not download image from URL:')
+                print(image_url)
 
                 traceback.print_exc()
