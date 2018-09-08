@@ -203,7 +203,7 @@ class FoggyCam(object):
 
                             print(
                                 'INFO: [COOKIE] Captured authentication token:'
-                                )
+                            )
                             print(cookie_data["cztoken"])
 
                             self.nest_access_token = \
@@ -320,7 +320,11 @@ class FoggyCam(object):
         while True:
             time.sleep(1)
 
-    def perform_capture(self, config=None, camera=None, camera_path=None, video_path=None):
+    def perform_capture(self, 
+                        config=None,
+                        camera=None,
+                        camera_path=None,
+                        video_path=None):
         """Captures images and generates the video from them."""
 
         if camera_path is None:
@@ -374,23 +378,19 @@ class FoggyCam(object):
                     if camera_buffer_size < self.nest_camera_buffer_threshold:
                         camera_buffer[camera].append(file_id)
                     else:
-                        camera_image_folder = camera_path
-
                         # Build the batch of files that need
                         # to be made into a video.
                         file_declaration = ''
                         for buffer_entry in camera_buffer[camera]:
-                            print("CAMERA PATH:",camera_path, buffer_entry)
                             # FFMPEG needs absolute paths
                             file_declaration += " file '{}.jpg'\n".format(
-                                os.path.abspath(os.path.join(camera_path, buffer_entry)))
-
+                                os.path.abspath(os.path.join(camera_path,
+                                                             buffer_entry)))
 
                         concat_file_name = os.path.join(
                             camera_path, camera + '.txt')
 
                         # Make sure that the content is decoded
-                        print("FILE DECLARATION:",file_declaration)
 
                         with open(concat_file_name, 'w') as declaration_file:
                             declaration_file.write(file_declaration)
@@ -423,7 +423,7 @@ class FoggyCam(object):
                             process = Popen(shlex.split(
                                 cmd), stdout=PIPE, stderr=PIPE)
                             out, err = process.communicate()
-                            #os.remove(concat_file_name)
+                            # os.remove(concat_file_name)
                             print('INFO: Video processing is complete!')
                             print("INFO: FFMPEG OUT:", out)
                             print("INFO: FFMPEG ERROR:", err)
