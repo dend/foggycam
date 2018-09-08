@@ -28,7 +28,6 @@ Rename `_config.json` to `config.json` and specify the following parameters:
 |`az_sas_token`|SAS token for the Azure Storage account. Should have `write`, `list` and `read` permissions.|
 
 
-```
 
 ## How To Start
 
@@ -53,7 +52,7 @@ Get [conda](https://repo.continuum.io/miniconda/)
 #### Create environement
 
 ```
-conda create -n foggycam python=3.6 ffmpeg
+conda create -n foggycam python=3.6 ffmpeg x264
 source activate foggycam
 ```
 

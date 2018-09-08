@@ -36,7 +36,7 @@ if [[ $(which python) == *${CONDA_ENV}* ]]; then
     echo "You have foggy env, great!"
 else
     echo "Creating conda env ${CONDA_ENV} for foggy cam"
-    ${CONDA_EXE} create -n ${CONDA_ENV} python=3.6 ffmpeg
+    ${CONDA_EXE} create -n ${CONDA_ENV} python=3.6 ffmpeg x264
 fi
 
 source activate ${CONDA_ENV}

@@ -1,6 +1,7 @@
 """FoggyCam captures Nest camera images and generates a video."""
 
 import pickle
+import tempfile
 import urllib
 import json
 from http.cookiejar import CookieJar
@@ -49,10 +50,6 @@ class FoggyCam(object):
     nest_camera_buffer_threshold = 50
 
     is_capturing = False
-    cookie_jar = None
-    merlin = None
-    temp_dir_path = ''
-    local_path = ''
 
     def __init__(self, username, password):
         self.nest_password = password
@@ -64,8 +61,8 @@ class FoggyCam(object):
         if not os.path.exists('_temp'):
             os.makedirs('_temp')
 
-        self.local_path = "."
-        self.temp_dir_path = os.path.join(self.local_path, '_temp')
+        self.local_path = os.getcwd()
+        self.temp_dir_path = tempfile.mkdtemp()
 
         # It's important to try and load the cookies first to check
         # if we can avoid logging in.
@@ -295,9 +292,6 @@ class FoggyCam(object):
         self.nest_camera_buffer_threshold = config.threshold
 
         for camera in self.nest_camera_array:
-            self.camera_path = ''
-            self.video_path = ''
-
             # Determine whether the entries should be copied to a custom path
             # or not.
             if not config.path:
@@ -364,7 +358,7 @@ class FoggyCam(object):
                 response = self.merlin.open(request)
                 time.sleep(5)
 
-                with open(os.path.join(self.camera_path, file_id + '.jpg'), 'wb')\
+                with open(os.path.join(camera_path, file_id + '.jpg'), 'wb')\
                         as image_file:
                     for chunk in response:
                         image_file.write(chunk)
@@ -372,7 +366,7 @@ class FoggyCam(object):
                 # Check if we need to compile a video
                 if config.produce_video:
                     camera_buffer_size = len(camera_buffer[camera])
-                    print('[ {} ] INFO: Camera buffer size for {} :'.format(
+                    print('[ {} ] INFO: Camera buffer size for {} : {}'.format(
                           threading.current_thread().name,
                           camera,
                           camera_buffer_size))
@@ -380,21 +374,23 @@ class FoggyCam(object):
                     if camera_buffer_size < self.nest_camera_buffer_threshold:
                         camera_buffer[camera].append(file_id)
                     else:
-                        camera_image_folder = os.path.join(
-                            self.local_path, self.camera_path)
+                        camera_image_folder = camera_path
 
                         # Build the batch of files that need
                         # to be made into a video.
                         file_declaration = ''
                         for buffer_entry in camera_buffer[camera]:
-                            file_declaration = "{} file '{}.jpg'\n".format(
-                                file_declaration,
-                                os.path.join(camera_image_folder, buffer_entry)
-                            )
+                            print("CAMERA PATH:",camera_path, buffer_entry)
+                            # FFMPEG needs absolute paths
+                            file_declaration += " file '{}.jpg'\n".format(
+                                os.path.abspath(os.path.join(camera_path, buffer_entry)))
+
+
                         concat_file_name = os.path.join(
-                            self.temp_dir_path, camera + '.txt')
+                            camera_path, camera + '.txt')
 
                         # Make sure that the content is decoded
+                        print("FILE DECLARATION:",file_declaration)
 
                         with open(concat_file_name, 'w') as declaration_file:
                             declaration_file.write(file_declaration)
@@ -415,14 +411,14 @@ class FoggyCam(object):
                                             and
                                             use_terminal is False):
                             print('INFO: Found ffmpeg. Processing video!')
-                            target_self.video_path = os.path.join(
-                                self.video_path, file_id + '.mp4')
+                            target_video_path = os.path.join(
+                                video_path, file_id + '.mp4')
                             cmd = "{} -r {} -f concat -safe 0 -i {} " +\
                                 "-vcodec libx264 -crf 25 -pix_fmt yuv420p {}"
                             cmd = cmd.format(ffmpeg_path,
                                              config.frame_rate,
                                              concat_file_name,
-                                             target_self.video_path)
+                                             target_video_path)
                             print("INFO: FFMPEG command:", cmd)
                             process = Popen(shlex.split(
                                 cmd), stdout=PIPE, stderr=PIPE)
@@ -447,7 +443,7 @@ class FoggyCam(object):
                                         sas_token=config.az_sas_token,
                                         container='foggycam',
                                         blob=target_blob,
-                                        path=target_self.video_path)
+                                        path=target_video_path)
                                     print('INFO: Upload complete.')
 
                             # If the user specified the need to remove images
@@ -456,7 +452,7 @@ class FoggyCam(object):
                             if config.clear_images:
                                 for buffer_entry in camera_buffer[camera]:
                                     deletion_target = os.path.join(
-                                        self.camera_path, buffer_entry + '.jpg')
+                                        camera_path, buffer_entry + '.jpg')
                                     print('INFO: Deleting ' + deletion_target)
                                     os.remove(deletion_target)
                         else:
