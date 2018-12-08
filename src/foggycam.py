@@ -14,7 +14,7 @@ import threading
 import time
 from datetime import datetime
 import subprocess
-from azurestorageprovider import AzureStorageProvider
+# from azurestorageprovider import AzureStorageProvider
 import shutil
 
 class FoggyCam(object):
@@ -110,7 +110,7 @@ class FoggyCam(object):
             request.add_header('Authorization', 'Basic %s' % self.nest_access_token)
 
             response = self.merlin.open(request)
-            session_data = response.read()
+            session_data = response.read().decode('utf-8')
 
             session_json = json.loads(session_data)
 
@@ -136,7 +136,7 @@ class FoggyCam(object):
 
         try:
             response = self.merlin.open(request)
-            session_data = response.read()
+            session_data = response.read().decode('utf-8')
             session_json = json.loads(session_data)
 
             self.nest_access_token = session_json['access_token']
@@ -177,7 +177,7 @@ class FoggyCam(object):
 
                     try:
                         response = self.merlin.open(request)
-                        pin_attempt = response.read()
+                        pin_attempt = response.read().decode('utf-8')
 
                         parsed_pin_attempt = json.loads(pin_attempt)
                         if parsed_pin_attempt["status"].lower() == "id_match_positive":
@@ -224,7 +224,7 @@ class FoggyCam(object):
         request.add_header('Content-Type', 'application/x-www-form-urlencoded')
 
         response = self.merlin.open(request)
-        session_data = response.read()
+        session_data = response.read().decode('utf-8')
 
         print (session_data)
 
@@ -247,7 +247,7 @@ class FoggyCam(object):
 
         response = self.merlin.open(request)
 
-        response_data = response.read()
+        response_data = response.read().decode('utf-8')
 
         print (response_data)
 
@@ -299,7 +299,7 @@ class FoggyCam(object):
             image_thread.start()
 
         while True:
-            time.sleep(1)
+            time.sleep(0.5)
 
     def perform_capture(self, config=None, camera=None, camera_path='', video_path=''):
         """Captures images and generates the video from them."""
@@ -325,7 +325,7 @@ class FoggyCam(object):
 
             try:
                 response = self.merlin.open(request)
-                time.sleep(5)
+                time.sleep(2.5)
 
                 with open(camera_path + '/' + file_id + '.jpg', 'wb') as image_file:
                     for chunk in response:
@@ -371,13 +371,13 @@ class FoggyCam(object):
                             print ('INFO: Video processing is complete!')
 
                             # Upload the video
-                            storage_provider = AzureStorageProvider()
+                            # storage_provider = AzureStorageProvider()
 
-                            if bool(config.upload_to_azure):
-                                print ('INFO: Uploading to Azure Storage...')
-                                target_blob = 'foggycam/' + camera + '/' + file_id + '.mp4'
-                                storage_provider.upload_video(account_name=config.az_account_name, sas_token=config.az_sas_token, container='foggycam', blob=target_blob, path=target_video_path)
-                                print ('INFO: Upload complete.')
+                            # if bool(config.upload_to_azure):
+                            #     print ('INFO: Uploading to Azure Storage...')
+                            #     target_blob = 'foggycam/' + camera + '/' + file_id + '.mp4'
+                            #     storage_provider.upload_video(account_name=config.az_account_name, sas_token=config.az_sas_token, container='foggycam', blob=target_blob, path=target_video_path)
+                            #     print ('INFO: Upload complete.')
 
                             # If the user specified the need to remove images post-processing
                             # then clear the image folder from images in the buffer.
