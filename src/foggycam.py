@@ -325,7 +325,7 @@ class FoggyCam(object):
 
             try:
                 response = self.merlin.open(request)
-                time.sleep(2.5)
+                time.sleep(1.5)
 
                 with open(camera_path + '/' + file_id + '.jpg', 'wb') as image_file:
                     for chunk in response:
@@ -365,9 +365,20 @@ class FoggyCam(object):
                         if use_terminal or (os.path.isfile(ffmpeg_path) and use_terminal is False):
                             print ('INFO: Found ffmpeg. Processing video!')
                             target_video_path = os.path.join(video_path, file_id + '.mp4')
-                            process = Popen([ffmpeg_path, '-r', str(config.frame_rate), '-f', 'concat', '-safe', '0', '-i', concat_file_name, '-vcodec', 'libx264', '-crf', '25', '-pix_fmt', 'yuv420p', target_video_path], stdout=PIPE, stderr=PIPE)
+                            process = subprocess.Popen([ffmpeg_path, '-r', str(config.frame_rate), '-f', 'concat', '-safe', '0', '-i', concat_file_name, target_video_path], close_fds=False, start_new_session=True, stdout=PIPE, stderr=PIPE)
                             process.communicate()
+
+                            # TODO: make date_time_stamp apply to each frame during concat, instead of static timestamp to the final video
+                            date_time_stamp = 'drawtext=x=10:y=H-th-10:fontfile=DejaVuSans-Bold.ttf:fontsize=36:fontcolor=white:shadowcolor=black:shadowx=2:shadowy=2:text=' + datetime.now().strftime("%m-%d-%Y - %H\\\\:%M\\\\:%S")
+
+                            # TODO: don't call ffmpeg twice then delete initial video - do it all at once. I am not great with ffmpeg yet!
+                            target_video_path_final = os.path.join(video_path, datetime.now().strftime("%Y%m%d-%H%M%S") + '.mp4')
+                            process_overlay = subprocess.Popen([ffmpeg_path, '-i', target_video_path, '-vf', date_time_stamp, '-vcodec', 'libx264', '-crf', '25', '-pix_fmt', 'yuv420p', target_video_path_final], close_fds=False, start_new_session=True, stdout=PIPE, stderr=PIPE)
+                            process_overlay.communicate()
+
+
                             os.remove(concat_file_name)
+                            os.remove(target_video_path)
                             print ('INFO: Video processing is complete!')
 
                             # Upload the video
