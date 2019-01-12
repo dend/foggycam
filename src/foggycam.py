@@ -25,7 +25,6 @@ import shutil
 class FoggyCam(object):
     """FoggyCam client class that performs capture operations."""
 
-
     nest_username = ''
     nest_password = ''
 
@@ -71,7 +70,7 @@ class FoggyCam(object):
             self.unpickle_cookies()
 
             utc_date = datetime.utcnow()
-            utc_millis_str = str(int(utc_date.timestamp())*1000)
+            utc_millis_str = str(int(utc_date.timestamp()) * 1000)
             self.initialize_twof_session(utc_millis_str)
         except Exception:
             print("Failed to re-use the cookies. Re-initializing session...")
@@ -194,7 +193,7 @@ class FoggyCam(object):
 
                             utc_date = datetime.utcnow()
                             utc_millis_str = str(
-                                int(utc_date.timestamp())*1000)
+                                int(utc_date.timestamp()) * 1000)
 
                             print("Targetting new session with timestamp: ",
                                   utc_millis_str)
@@ -322,7 +321,7 @@ class FoggyCam(object):
         while True:
             time.sleep(1)
 
-    def perform_capture(self, 
+    def perform_capture(self,
                         config=None,
                         camera=None,
                         camera_path=None,
@@ -341,7 +340,7 @@ class FoggyCam(object):
             file_id = str(uuid.uuid4().hex)
 
             utc_date = datetime.utcnow()
-            utc_millis_str = str(int(utc_date.timestamp())*1000)
+            utc_millis_str = str(int(utc_date.timestamp()) * 1000)
 
             print('Applied cache buster: ', utc_millis_str)
 
@@ -381,13 +380,14 @@ class FoggyCam(object):
 
                     if camera_buffer_size < self.nest_camera_buffer_threshold:
                         camera_buffer[camera].append(file_id)
-                        timestamp = time.strftime("%Y-%m-%d %H\:%M\:%S",time.localtime())
+                        timestamp = time.strftime(
+                            "%Y-%m-%d %H\:%M\:%S", time.localtime())
                         camera_timestamps_buffer[camera].append(timestamp)
                     else:
                         # Build the batch of files that need
                         # to be made into a video.
                         file_declaration = ''
-                        ffmpeg_text='-vf "'
+                        ffmpeg_text = '-vf "'
 
                         for buffer_entry in camera_buffer[camera]:
                             # FFMPEG needs absolute paths
@@ -399,19 +399,21 @@ class FoggyCam(object):
                         font_color = "white"
                         font_size = 24
                         buf_time = camera_buffer_size * config.capture_rate  # in seconds
-                        mov_time = camera_buffer_size / config.frame_rate # in seconds
+                        mov_time = camera_buffer_size / config.frame_rate  # in seconds
                         ratio = mov_time / buf_time
-                        for i, timestamp in enumerate(camera_timestamps_buffer[camera]):
+                        for i, timestamp in enumerate(
+                                camera_timestamps_buffer[camera]):
                             start = i * config.capture_rate * ratio
                             #  Not quite 1 to avoid overlap
                             end = (i + .999) * config.capture_rate * ratio
                             last_time = timestamp.replace("\\:", "-")
                             last_time = last_time.replace(" ", "_")
-                            print("ACTUAL :",start, end, last_time)
-                            text = ffmpeg_tmpl.format(timestamp, font_size+1, font_file, font_size, font_color, start, end)
+                            print("ACTUAL :", start, end, last_time)
+                            text = ffmpeg_tmpl.format(
+                                timestamp, font_size + 1, font_file, font_size, font_color, start, end)
                             ffmpeg_text += text
 
-                        ffmpeg_text = ffmpeg_text[:-2]+'"'
+                        ffmpeg_text = ffmpeg_text[:-2] + '"'
                         concat_file_name = os.path.join(
                             camera_path, camera + '.txt')
 
