@@ -25,6 +25,7 @@ import shutil
 class FoggyCam(object):
     """FoggyCam client class that performs capture operations."""
 
+
     nest_username = ''
     nest_password = ''
 
@@ -284,6 +285,7 @@ class FoggyCam(object):
 
         print('INFO: Capturing images...')
 
+        self.capture_rate = config.capture_rate
         self.is_capturing = True
 
         if not os.path.exists('capture'):
@@ -332,8 +334,10 @@ class FoggyCam(object):
         if video_path is None:
             video_path = self.video_path
         camera_buffer = defaultdict(list)
+        camera_timestamps_buffer = defaultdict(list)
 
         while self.is_capturing:
+            print("New pic")
             file_id = str(uuid.uuid4().hex)
 
             utc_date = datetime.utcnow()
@@ -360,7 +364,7 @@ class FoggyCam(object):
 
             try:
                 response = self.merlin.open(request)
-                time.sleep(5)
+                time.sleep(self.capture_rate)
 
                 with open(os.path.join(camera_path, file_id + '.jpg'), 'wb')\
                         as image_file:
@@ -377,16 +381,37 @@ class FoggyCam(object):
 
                     if camera_buffer_size < self.nest_camera_buffer_threshold:
                         camera_buffer[camera].append(file_id)
+                        timestamp = time.strftime("%Y-%m-%d %H\:%M\:%S",time.localtime())
+                        camera_timestamps_buffer[camera].append(timestamp)
                     else:
                         # Build the batch of files that need
                         # to be made into a video.
                         file_declaration = ''
+                        ffmpeg_text='-vf "'
+
                         for buffer_entry in camera_buffer[camera]:
                             # FFMPEG needs absolute paths
                             file_declaration += " file '{}.jpg'\n".format(
                                 os.path.abspath(os.path.join(camera_path,
                                                              buffer_entry)))
+                        ffmpeg_tmpl = "drawtext=text='{}':x=5:y={}:fontfile={}:fontsize={}:fontcolor={}:borderw=3:bordercolor=black:box=0:enable='between(t,{},{})', "
+                        font_file = "/Volumes/Devel/git/matplotlib/lib/matplotlib/mpl-data/fonts/ttf/Vera.ttf"
+                        font_color = "white"
+                        font_size = 24
+                        buf_time = camera_buffer_size * config.capture_rate  # in seconds
+                        mov_time = camera_buffer_size / config.frame_rate # in seconds
+                        ratio = mov_time / buf_time
+                        for i, timestamp in enumerate(camera_timestamps_buffer[camera]):
+                            start = i * config.capture_rate * ratio
+                            #  Not quite 1 to avoid overlap
+                            end = (i + .999) * config.capture_rate * ratio
+                            last_time = timestamp.replace("\\:", "-")
+                            last_time = last_time.replace(" ", "_")
+                            print("ACTUAL :",start, end, last_time)
+                            text = ffmpeg_tmpl.format(timestamp, font_size+1, font_file, font_size, font_color, start, end)
+                            ffmpeg_text += text
 
+                        ffmpeg_text = ffmpeg_text[:-2]+'"'
                         concat_file_name = os.path.join(
                             camera_path, camera + '.txt')
 
@@ -412,13 +437,13 @@ class FoggyCam(object):
                                             use_terminal is False):
                             print('INFO: Found ffmpeg. Processing video!')
                             target_video_path = os.path.join(
-                                video_path, file_id + '.mp4')
+                                video_path, last_time + '.mp4')
                             cmd = "{} -r {} -f concat -safe 0 -i {} " +\
-                                "-vcodec libx264 -crf 25 -pix_fmt yuv420p {}"
+                                "-vcodec libx264 -preset veryslow -pix_fmt yuv420p "
                             cmd = cmd.format(ffmpeg_path,
                                              config.frame_rate,
-                                             concat_file_name,
-                                             target_video_path)
+                                             concat_file_name)
+                            cmd += ffmpeg_text + " " + target_video_path
                             print("INFO: FFMPEG command:", cmd)
                             process = Popen(shlex.split(
                                 cmd), stdout=PIPE, stderr=PIPE)
@@ -455,6 +480,7 @@ class FoggyCam(object):
                                         camera_path, buffer_entry + '.jpg')
                                     print('INFO: Deleting ' + deletion_target)
                                     os.remove(deletion_target)
+                            print("Done with video")
                         else:
                             print(
                                 'WARNING: No ffmpeg detected.' +
@@ -463,7 +489,9 @@ class FoggyCam(object):
                         # since we no longer need the file records
                         # that we're planning to compile in a video.
                         camera_buffer[camera] = []
+                        camera_timestamps_buffer[camera] = []
             except urllib.request.HTTPError as err:
+                print("403")
                 if err.code == 403:
                     self.initialize_session()
                     self.login()

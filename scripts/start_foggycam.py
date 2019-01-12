@@ -17,6 +17,8 @@ parser.add_argument(
     "-o", "--path", help="output path for images and videos", default=None)
 parser.add_argument("-f", "--frame-rate", help="frame rate",
                     type=int, default=None)
+parser.add_argument("-r", "--capture-rate", help="capture rate (time between capture of image)",
+                    type=int, default=None)
 parser.add_argument(
     "-w", "--width", help="image width (in pixel)",
     type=int, default=None)
