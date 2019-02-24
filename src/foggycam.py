@@ -16,6 +16,7 @@ from datetime import datetime
 import subprocess
 from azurestorageprovider import AzureStorageProvider
 import shutil
+import re
 
 class FoggyCam(object):
     """FoggyCam client class that performs capture operations."""
@@ -31,7 +32,7 @@ class FoggyCam(object):
     nest_session_url = 'https://home.nest.com/session'
     nest_user_url = 'https://home.nest.com/api/0.1/user/#USERID#/app_launch'
     nest_api_login_url = 'https://webapi.camera.home.nest.com/api/v1/login.login_nest'
-    nest_image_url = 'https://nexusapi-us1.camera.home.nest.com/get_image?uuid=#CAMERAID#&width=#WIDTH#&cachebuster=#CBUSTER#'
+    nest_image_url = 'https://nexusapi-#REGION#.camera.home.nest.com/get_image?uuid=#CAMERAID#&width=#WIDTH#&cachebuster=#CBUSTER#'
     nest_verify_pin_url = 'https://home.nest.com/api/0.1/2fa/verify_pin'
 
     nest_user_request_payload = {
@@ -256,11 +257,26 @@ class FoggyCam(object):
             bucket_id = bucket['object_key']
             if bucket_id.startswith('quartz.'):
                 camera_id = bucket_id.replace('quartz.', '')
+                # Attempt to get cameras API region
+                try:
+                    nexus_api_http_server_url = bucket['value']['nexus_api_http_server_url']
+                    camera_api_region = re.search('https://nexusapi-(.+?).dropcam.com', nexus_api_http_server_url).group(1)
+                except AttributeError:
+                    # Failed to find region - default back to us1
+                    camera_api_region = 'us1'
                 print ('INFO: Detected camera configuration.')
                 print (bucket)
                 print ('INFO: Camera UUID:')
                 print (camera_id)
-                self.nest_camera_array.append(camera_id)
+                print ('INFO: Camera API REGION:')
+                print (camera_api_region)
+
+                camera = {
+                    "id": camera_id,
+                    "region": camera_api_region
+                }
+
+                self.nest_camera_array.append(camera)
 
     def capture_images(self, config=None):
         """Starts the multi-threaded image capture process."""
@@ -274,18 +290,18 @@ class FoggyCam(object):
 
         self.nest_camera_buffer_threshold = config.threshold
 
-        for camera in self.nest_camera_array:
+        for camera in self.nest_camera_array:            
             camera_path = ''
             video_path = ''
 
             # Determine whether the entries should be copied to a custom path
             # or not.
             if not config.path:
-                camera_path = os.path.join(self.local_path, 'capture', camera, 'images')
-                video_path = os.path.join(self.local_path, 'capture', camera, 'video')
+                camera_path = os.path.join(self.local_path, 'capture', camera['id'], 'images')
+                video_path = os.path.join(self.local_path, 'capture', camera['id'], 'video')
             else:
-                camera_path = os.path.join(config.path, 'capture', camera, 'images')
-                video_path = os.path.join(config.path, 'capture', camera, 'video')
+                camera_path = os.path.join(config.path, 'capture', camera['id'], 'images')
+                video_path = os.path.join(config.path, 'capture', camera['id'], 'video')
 
             # Provision the necessary folders for images and videos.
             if not os.path.exists(camera_path):
@@ -294,14 +310,14 @@ class FoggyCam(object):
             if not os.path.exists(video_path):
                 os.makedirs(video_path)
 
-            image_thread = threading.Thread(target=self.perform_capture, args=(config, camera, camera_path, video_path))
+            image_thread = threading.Thread(target=self.perform_capture, args=(config, camera['id'], camera['region'], camera_path, video_path))
             image_thread.daemon = True
             image_thread.start()
 
         while True:
             time.sleep(1)
 
-    def perform_capture(self, config=None, camera=None, camera_path='', video_path=''):
+    def perform_capture(self, config=None, camera=None, camera_api_region='us1', camera_path='', video_path=''):
         """Captures images and generates the video from them."""
 
         camera_buffer = defaultdict(list)
@@ -314,14 +330,15 @@ class FoggyCam(object):
 
             print ('Applied cache buster: ', utc_millis_str)
 
-            image_url = self.nest_image_url.replace('#CAMERAID#', camera).replace('#CBUSTER#', utc_millis_str).replace('#WIDTH#', str(config.width))
+            image_url = self.nest_image_url.replace('#CAMERAID#', camera).replace('#REGION#', camera_api_region).replace('#CBUSTER#', utc_millis_str).replace('#WIDTH#', str(config.width))
 
+            authoriy_header_url = 'nexusapi-' + camera_api_region + '.camera.home.nest.com'
             request = urllib.request.Request(image_url)
             request.add_header('accept', 'image/webp,image/apng,image/*,*/*;q=0.9')
             request.add_header('accept-encoding', 'gzip, deflate, br')
             request.add_header('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36')
             request.add_header('referer','https://home.nest.com/')
-            request.add_header('authority','nexusapi-us1.camera.home.nest.com')
+            request.add_header('authority', authoriy_header_url)
 
             try:
                 response = self.merlin.open(request)
