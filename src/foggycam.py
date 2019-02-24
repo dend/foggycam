@@ -290,7 +290,7 @@ class FoggyCam(object):
 
         self.nest_camera_buffer_threshold = config.threshold
 
-        for camera in self.nest_camera_array:            
+        for camera in self.nest_camera_array:
             camera_path = ''
             video_path = ''
 
