@@ -4,7 +4,7 @@
 
 A tool to capture Nest video streams locally or to the Azure cloud, even for users without a Nest subscription. The current release is tested on macOS. Windows and Linux adaptations coming soon (minor tweaks required).
 
->**NOTE:** Audio recording is currently not supported.
+>**NOTE:** Audio recording is currently not supported.  The python scripts grab the images, stores them until it hits a threshold that's set, and then stitches them together as a video.
 
 ## How To Configure
 
